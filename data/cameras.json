@@ -1,17 +1,7 @@
 [
   {
-    "id": "cam_1",
+    "id": "cam_2",
     "label": "enA",
-    "url": "1"
-  },
-  {
-    "id": "cam_3",
-    "label": "cam_3",
-    "url": "2"
-  },
-  {
-    "id": "cam_3",
-    "label": "My PC CAM",
     "url": "0"
   }
 ]

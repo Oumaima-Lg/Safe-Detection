@@ -1,4 +1,5 @@
-# SAFEDETECT - Application web + détection OpenCV
+# SAFEDETECT - Application web + détection OpenCV + YOLO
 flask>=2.3.0
 opencv-python>=4.8.0
 numpy>=1.24.0
+ultralytics>=8.0.0

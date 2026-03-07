@@ -15,6 +15,13 @@ try:
 except ImportError:
     winsound = None
 
+try:
+    from ultralytics import YOLO
+    _YOLO_AVAILABLE = True
+except Exception:
+    YOLO = None
+    _YOLO_AVAILABLE = False
+
 # ==============================
 # CONFIGURATION
 # ==============================
@@ -45,7 +52,32 @@ def alerte_sonore():
         except Exception:
             pass
     else:
-        print("\a")
+        print("\a")  
+
+        
+
+
+_yolo_model = None
+
+
+def _get_yolo_model():
+    """
+    Charge le modèle YOLO (version légère) une seule fois.
+    Utilise par défaut 'yolov8n.pt' (petit modèle) ou la valeur de SAFEDETECT_YOLO_MODEL.
+    """
+    global _yolo_model
+    if not _YOLO_AVAILABLE:
+        return None
+    if _yolo_model is None:
+        model_name = os.environ.get("SAFEDETECT_YOLO_MODEL", "yolov8n.pt")
+        try:
+            _yolo_model = YOLO(model_name)
+        except Exception as e:
+            # Échec de chargement (poids corrompus, etc.)
+            print(f"[SAFEDETECT] Erreur chargement YOLO ({model_name}) : {e}")
+            _yolo_model = None
+            return None
+    return _yolo_model
 
 
 def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_event=None):
@@ -68,11 +100,14 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
     if not cap.isOpened():
         return {"error": f"Impossible d'ouvrir la source: {camera_url_or_index}"}
 
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=800, varThreshold=45, detectShadows=True)
+    # Modèle YOLO pour détecter uniquement les personnes
+    model = _get_yolo_model()
+    if model is None:
+        return {"error": "Modèle YOLO indisponible. Installez le paquet 'ultralytics' et les poids (yolov8n.pt)."}
+
     compteur_total = 0
     est_en_alerte = False
     temps_debut_intrusion = 0
-    trajectoire = []
 
     while not stop_event.is_set():
         ret, frame = cap.read()
@@ -86,12 +121,13 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         overlay = frame_orig.copy()
         frame_h, frame_w = frame_visuelle.shape[:2]
 
-        mask = fgbg.apply(frame_orig)
-        _, mask = cv2.threshold(mask, 200, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # ==========================
+        # Détection YOLO des personnes
+        # ==========================
+        # Pour limiter la charge CPU, vous pouvez réduire la taille de l'image :
+        # frame_input = cv2.resize(frame_orig, (640, 360))
+        # et adapter les coordonnées. Ici on garde la taille native pour plus de précision.
+        results = model(frame_orig, verbose=False)[0]
         quelquun_dans_zone = False
 
         roi_bottom_margin = 50
@@ -104,18 +140,31 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         ])
 
         def check_roi(x, y):
-            return cv2.pointPolygonTest(roi_points, (x, y), False) >= 0
+            # pointPolygonTest attend un tuple de floats
+            return cv2.pointPolygonTest(roi_points, (float(x), float(y)), False) >= 0
 
-        for cnt in contours:
-            if cv2.contourArea(cnt) > SURFACE_MIN_HUMAIN:
-                x, y, w, h = cv2.boundingRect(cnt)
-                cx, cy = x + w // 2, y + h // 2
-                if check_roi(cx, cy):
-                    quelquun_dans_zone = True
-                    trajectoire.append((cx, cy))
-                    cv2.rectangle(frame_visuelle, (x, y), (x + w, y + h), JAUNE_INTRUS, 2)
-                    cv2.putText(frame_visuelle, "INTRUS", (x, y - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, JAUNE_INTRUS, 2)
+        # Classe COCO 0 = "person"
+        for box in getattr(results, "boxes", []):
+            cls_id = int(box.cls[0]) if hasattr(box, "cls") else -1
+            if cls_id != 0:
+                continue
+            xyxy = box.xyxy[0].cpu().numpy().astype(int)
+            x1, y1, x2, y2 = xyxy
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+
+            if check_roi(cx, cy):
+                quelquun_dans_zone = True
+                cv2.rectangle(frame_visuelle, (x1, y1), (x2, y2), JAUNE_INTRUS, 2)
+                cv2.putText(
+                    frame_visuelle,
+                    "PERSONNE",
+                    (x1, max(0, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    JAUNE_INTRUS,
+                    2,
+                )
 
         if quelquun_dans_zone:
             if not est_en_alerte:
@@ -138,10 +187,6 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
                     writer = csv.writer(f)
                     writer.writerow([timestamp, "Violation Zone Critique", duree, camera_id])
                 est_en_alerte = False
-                trajectoire = []
-
-        for i in range(1, len(trajectoire)):
-            cv2.line(frame_visuelle, trajectoire[i - 1], trajectoire[i], JAUNE_INTRUS, 2)
 
         cv2.fillPoly(overlay, [roi_points], BLEU_ZONE)
         cv2.addWeighted(overlay, 0.3, frame_visuelle, 0.7, 0, frame_visuelle)
