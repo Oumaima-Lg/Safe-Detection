@@ -1,4 +1,4 @@
-# SAVEDETECT
+# SAFEDETECT
 
 ## Guide
 
@@ -14,7 +14,7 @@
 - Comportement inchangé pour une utilisation en ligne de commande avec une caméra.
 
 ### 3. Application web (`app.py`)
-- **Connexion admin** : identifiant et mot de passe (par défaut `admin` / `savedetect2025`, modifiables via variables d'environnement).
+- **Connexion admin** : identifiant et mot de passe (par défaut `admin` / `safedetect2026`, modifiables via variables d'environnement).
 - **Tableau de bord** après connexion :
   - Démarrer / Arrêter la surveillance pour toutes les caméras configurées.
   - Ajouter des caméras : nom optionnel + adresse (URL IP, flux HTTP, RTSP, etc.).

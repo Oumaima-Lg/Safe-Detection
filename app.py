@@ -1,5 +1,5 @@
 """
-SAVEDETECT - Application web d'administration.
+SAFEDETECT - Application web d'administration.
 Connexion admin + gestion de plusieurs adresses de caméras.
 """
 import os
@@ -8,7 +8,7 @@ import csv
 import time
 from pathlib import Path
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_from_directory
 
 from surveillance import start_surveillance, stop_surveillance, get_active_cameras, get_last_frame
 
@@ -18,6 +18,7 @@ from surveillance import start_surveillance, stop_surveillance, get_active_camer
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 CAMERAS_FILE = DATA_DIR / "cameras.json"
+CAPTURES_DIR = BASE_DIR / "captures_intrusions"
 
 # Comptes admin (en production : utiliser des mots de passe hashés et une vraie base)
 # Vous pouvez définir ADMIN_USER et ADMIN_PASSWORD dans les variables d'environnement
@@ -175,6 +176,31 @@ def logs():
             rows.reverse()
             rows = rows[:200]
     return render_template("logs.html", header=header, rows=rows)
+
+
+@app.route("/captures")
+@login_required
+def captures():
+    """Page listant les captures d'intrusion (screenshots) par caméra."""
+    captures_list = []
+    if CAPTURES_DIR.exists():
+        for cam_dir in sorted(CAPTURES_DIR.iterdir()):
+            if cam_dir.is_dir():
+                images = sorted(cam_dir.glob("*.jpg"), reverse=True)[:50]
+                captures_list.append(
+                    {
+                        "camera": cam_dir.name,
+                        "files": [f"{cam_dir.name}/{img.name}" for img in images],
+                    }
+                )
+    return render_template("captures.html", captures=captures_list)
+
+
+@app.route("/captures/file/<path:filename>")
+@login_required
+def capture_file(filename):
+    """Serre les fichiers d'image de captures_intrusions."""
+    return send_from_directory(CAPTURES_DIR, filename)
 
 
 # ==============================

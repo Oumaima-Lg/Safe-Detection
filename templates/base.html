@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}SAVEDETECT{% endblock %}</title>
+    <title>{% block title %}SAFEDETECT{% endblock %}</title>
     <style>
         :root {
             --bg: #0f1419;
@@ -85,11 +85,13 @@
 <body>
     {% if session.get('admin_logged_in') %}
     <nav>
-        <span><strong>SAVEDETECT</strong> — Administration</span>
+        <span><strong>SAFEDETECT</strong> — Administration</span>
         <span>
             <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
             &nbsp;|&nbsp;
             <a href="{{ url_for('logs') }}">Logs</a>
+            &nbsp;|&nbsp;
+            <a href="{{ url_for('captures') }}">Captures</a>
             &nbsp;|&nbsp;
             <a href="{{ url_for('logout') }}">Déconnexion</a>
         </span>

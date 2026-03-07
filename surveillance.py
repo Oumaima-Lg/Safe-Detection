@@ -1,5 +1,5 @@
 """
-Module de surveillance SAVEDETECT - Détection d'intrusion par caméra.
+Module de surveillance SAFEDETECT - Détection d'intrusion par caméra.
 Peut être utilisé en script standalone (une caméra) ou par l'app web (plusieurs caméras).
 """
 import cv2
@@ -166,7 +166,7 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
                 with _last_frames_lock:
                     _last_frames[camera_id] = jpeg.tobytes()
         else:
-            cv2.imshow(f"SAVEDETECT - {camera_id}", frame_visuelle)
+            cv2.imshow(f"SAFEDETECT - {camera_id}", frame_visuelle)
 
         if not headless and (cv2.waitKey(1) & 0xFF == ord('q')):
             break
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         URL_CAM = sys.argv[1]
     print("--------------------------------------------------")
-    print("   SAVEDETECT : PROTECTION INDUSTRIELLE ACTIVE    ")
+    print("   SAFEDETECT : PROTECTION INDUSTRIELLE ACTIVE    ")
     print("--------------------------------------------------")
     print("Appuyez sur 'q' pour arrêter.")
     run_detection(URL_CAM, "cam0", headless=False)

@@ -1,5 +1,5 @@
 """
-SAVEDETECT - Script standalone (une caméra).
+SAFEDETECT - Script standalone (une caméra).
 Pour plusieurs caméras, utilisez l'application web.
 """
 import os
@@ -10,7 +10,7 @@ URL_CAM = os.environ.get("URL_CAM", "http://10.247.21.164:8080/video")
 
 if __name__ == "__main__":
     print("--------------------------------------------------")
-    print("   SAVEDETECT : PROTECTION INDUSTRIELLE ACTIVE    ")
+    print("   SAFEDETECT : PROTECTION INDUSTRIELLE ACTIVE    ")
     print("--------------------------------------------------")
     print("Appuyez sur 'q' pour arrêter le système.")
     run_detection(URL_CAM, "cam0", headless=False)
