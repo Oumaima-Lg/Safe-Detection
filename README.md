@@ -52,3 +52,9 @@ $env:SAVEDETECT_ADMIN_PASSWORD = "votre_mot_de_passe"
 $env:SECRET_KEY = "une-cle-secrete-aleatoire"
 python app.py
 ```
+
+
+Clic gauche : ajouter des points du polygone (contour de la zone).
+r : effacer tous les points et recommencer.
+s ou Entrée : valider la zone (au moins 3 points).
+q ou Échap : annuler → le code reprend l’ancienne zone rectangulaire en bas.

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Zone critique — {{ camera_label }}{% endblock %}
+{% block content %}
+<h1>Définir la zone critique — {{ camera_label }}</h1>
+
+<div class="card">
+    <p id="msg" style="color: var(--muted); margin-bottom: 1rem;">
+        Chargement de l'image…
+    </p>
+    <p id="hint" style="display: none; color: var(--muted); margin-bottom: 0.5rem; font-size: 0.9rem;">
+        Cliquez sur l'image pour ajouter les sommets du polygone (zone critique). Au moins 3 points. Puis validez.
+    </p>
+    <div id="container" style="display: none; position: relative; max-width: 100%;">
+        <img id="frame" alt="Vue caméra" style="max-width: 100%; height: auto; display: block; background: #000;">
+        <canvas id="canvas" style="position: absolute; top: 0; left: 0; cursor: crosshair;"></canvas>
+    </div>
+    <div id="actions" style="display: none; margin-top: 1rem;">
+        <button type="button" class="btn btn-secondary" id="btnReset">Réinitialiser</button>
+        <button type="button" class="btn btn-primary" id="btnSubmit" style="margin-left: 0.5rem;">Valider la zone</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const cameraId = "{{ camera_id }}";
+    const container = document.getElementById("container");
+    const frame = document.getElementById("frame");
+    const canvas = document.getElementById("canvas");
+    const msg = document.getElementById("msg");
+    const hint = document.getElementById("hint");
+    const actions = document.getElementById("actions");
+
+    let dataWidth = 0, dataHeight = 0;
+    let points = [];
+
+    function showError(text) {
+        msg.textContent = text;
+        msg.style.color = "var(--danger)";
+    }
+
+    function drawPolygon() {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (points.length < 2) return;
+        ctx.strokeStyle = "rgba(0, 255, 255, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.stroke();
+        points.forEach(function(p) {
+            ctx.fillStyle = "rgba(0, 255, 255, 0.8)";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    fetch("/api/zone-setup/" + cameraId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error === "start_stream_first") {
+                showError("Démarrez d'abord la surveillance pour cette caméra, puis revenez ici pour définir la zone.");
+                return;
+            }
+            if (data.error || !data.image) {
+                showError(data.error || "Erreur chargement image.");
+                return;
+            }
+            msg.textContent = "";
+            hint.style.display = "block";
+            container.style.display = "block";
+            actions.style.display = "block";
+            frame.src = data.image;
+            dataWidth = data.width;
+            dataHeight = data.height;
+            frame.onload = function() {
+                const rect = frame.getBoundingClientRect();
+                const w = Math.round(rect.width);
+                const h = Math.round(rect.height);
+                canvas.width = w;
+                canvas.height = h;
+                canvas.style.width = w + "px";
+                canvas.style.height = h + "px";
+            };
+        })
+        .catch(function() { showError("Erreur réseau."); });
+
+    canvas.addEventListener("click", function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        points.push({ x: x, y: y });
+        drawPolygon();
+    });
+
+    document.getElementById("btnReset").addEventListener("click", function() {
+        points = [];
+        drawPolygon();
+    });
+
+    document.getElementById("btnSubmit").addEventListener("click", function() {
+        if (points.length < 3) {
+            alert("Ajoutez au moins 3 points.");
+            return;
+        }
+        const rect = frame.getBoundingClientRect();
+        const scaleX = dataWidth / rect.width;
+        const scaleY = dataHeight / rect.height;
+        const payload = {
+            points: points.map(function(p) {
+                return [Math.round(p.x * scaleX), Math.round(p.y * scaleY)];
+            }),
+            frame_size: [dataWidth, dataHeight]
+        };
+        fetch("/api/zone-setup/" + cameraId, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) window.location.href = "{{ url_for('dashboard') }}?zone_saved=1";
+            else alert("Erreur: " + (data.error || "inconnue"));
+        })
+        .catch(function() { alert("Erreur réseau."); });
+    });
+})();
+</script>
+{% endblock %}

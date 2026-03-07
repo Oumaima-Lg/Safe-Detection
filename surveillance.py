@@ -9,6 +9,7 @@ import csv
 import time
 import os
 import threading
+import json
 
 try:
     import winsound
@@ -35,6 +36,10 @@ JAUNE_INTRUS = (0, 255, 255)
 ROUGE_ALERTE = (0, 0, 255)
 VERT_OK = (0, 255, 0)
 BLANC = (255, 255, 255)
+ROI_CONFIG_FILE = "zone_critique.json"
+# Fichier des zones par caméra (app web)
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ZONES_JSON = os.path.join(_SCRIPT_DIR, "data", "zones.json")
 
 if not os.path.exists(SCREENSHOT_DIR):
     os.makedirs(SCREENSHOT_DIR)
@@ -52,9 +57,113 @@ def alerte_sonore():
         except Exception:
             pass
     else:
-        print("\a")  
+        print("\a")
 
-        
+
+def _load_saved_roi(frame_w: int, frame_h: int):
+    """
+    Charge un polygone de zone critique sauvegardé depuis ROI_CONFIG_FILE
+    en vérifiant la taille de l'image (script standalone).
+    """
+    if not os.path.isfile(ROI_CONFIG_FILE):
+        return None
+    try:
+        with open(ROI_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        pts = data.get("points")
+        size = data.get("frame_size")
+        if not pts or not size:
+            return None
+        if size[0] != frame_w or size[1] != frame_h:
+            return None
+        return np.array(pts, dtype=np.int32)
+    except Exception:
+        return None
+
+
+def load_roi_for_camera(camera_id: str, frame_w: int, frame_h: int):
+    """
+    Charge le polygone de zone critique pour une caméra (app web).
+    Lit depuis data/zones.json, clé = camera_id. Retourne None si absent ou taille différente.
+    """
+    if not os.path.isfile(ZONES_JSON):
+        return None
+    try:
+        with open(ZONES_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cam_data = data.get(camera_id)
+        if not cam_data:
+            return None
+        pts = cam_data.get("points")
+        size = cam_data.get("frame_size")
+        if not pts or not size:
+            return None
+        if size[0] != frame_w or size[1] != frame_h:
+            return None
+        return np.array(pts, dtype=np.int32)
+    except Exception:
+        return None
+
+
+def _save_roi(points, frame_w: int, frame_h: int):
+    """Sauvegarde le polygone de zone critique dans ROI_CONFIG_FILE."""
+    data = {
+        "points": [(int(x), int(y)) for x, y in points],
+        "frame_size": [int(frame_w), int(frame_h)],
+    }
+    with open(ROI_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _define_roi_with_mouse(frame):
+    """
+    Laisse l'utilisateur dessiner un polygone de zone critique avec la souris.
+    - Clic gauche : ajoute un point
+    - r : reset les points
+    - s ou Entrée : valider (au moins 3 points)
+    - q ou Échap : annuler
+    """
+    window_name = "SAFEDETECT - Dessiner la zone critique"
+    points = []
+
+    def on_mouse(event, x, y, flags, param):
+        nonlocal points
+        if event == cv2.EVENT_LBUTTONDOWN:
+            points.append((x, y))
+
+    cv2.namedWindow(window_name)
+    cv2.setMouseCallback(window_name, on_mouse)
+
+    while True:
+        vis = frame.copy()
+        if points:
+            # Dessiner les points et les segments
+            for p in points:
+                cv2.circle(vis, p, 4, (0, 255, 255), -1)
+            cv2.polylines(vis, [np.array(points, dtype=np.int32)], False, (0, 255, 255), 2)
+        cv2.putText(
+            vis,
+            "Clic=gauche: points, s/Enter=valider, r=reset, q=annuler",
+            (10, 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            1,
+        )
+        cv2.imshow(window_name, vis)
+        key = cv2.waitKey(20) & 0xFF
+        if key in (13, 10, ord("s")) and len(points) >= 3:
+            break
+        if key == ord("r"):
+            points = []
+        if key in (27, ord("q")):
+            points = []
+            break
+
+    cv2.destroyWindow(window_name)
+    if len(points) >= 3:
+        return np.array(points, dtype=np.int32)
+    return None
 
 
 _yolo_model = None
@@ -108,6 +217,7 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
     compteur_total = 0
     est_en_alerte = False
     temps_debut_intrusion = 0
+    roi_points = None
 
     while not stop_event.is_set():
         ret, frame = cap.read()
@@ -122,6 +232,50 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         frame_h, frame_w = frame_visuelle.shape[:2]
 
         # ==========================
+        # Zone critique : polygone utilisateur si disponible
+        # ==========================
+        if roi_points is None:
+            # 1) App web : zone par caméra (data/zones.json)
+            roi_loaded = load_roi_for_camera(camera_id, frame_w, frame_h)
+            if roi_loaded is not None:
+                roi_points = roi_loaded
+            # 2) Script standalone : zone globale (zone_critique.json)
+            if roi_points is None:
+                roi_loaded_standalone = _load_saved_roi(frame_w, frame_h)
+                if roi_loaded_standalone is not None:
+                    roi_points = roi_loaded_standalone
+            if roi_points is None and not headless:
+                # 3) En mode non headless, laisser l'utilisateur dessiner une zone (souris)
+                drawn = _define_roi_with_mouse(frame_visuelle)
+                if drawn is not None:
+                    roi_points = drawn
+                    _save_roi(roi_points, frame_w, frame_h)
+                else:
+                    # Si l'utilisateur annule, on retombe sur l'ancienne zone rectangulaire en bas
+                    roi_bottom_margin = 50
+                    roi_height = 300
+                    roi_points = np.array(
+                        [
+                            [0, frame_h - roi_bottom_margin - roi_height],
+                            [frame_w, frame_h - roi_bottom_margin - roi_height],
+                            [frame_w, frame_h - roi_bottom_margin],
+                            [0, frame_h - roi_bottom_margin],
+                        ]
+                    )
+            else:
+                # 4) Sinon : zone rectangulaire par défaut (bas de l'image)
+                roi_bottom_margin = 50
+                roi_height = 300
+                roi_points = np.array(
+                    [
+                        [0, frame_h - roi_bottom_margin - roi_height],
+                        [frame_w, frame_h - roi_bottom_margin - roi_height],
+                        [frame_w, frame_h - roi_bottom_margin],
+                        [0, frame_h - roi_bottom_margin],
+                    ]
+                )
+
+        # ==========================
         # Détection YOLO des personnes
         # ==========================
         # Pour limiter la charge CPU, vous pouvez réduire la taille de l'image :
@@ -129,15 +283,6 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         # et adapter les coordonnées. Ici on garde la taille native pour plus de précision.
         results = model(frame_orig, verbose=False)[0]
         quelquun_dans_zone = False
-
-        roi_bottom_margin = 50
-        roi_height = 300
-        roi_points = np.array([
-            [0, frame_h - roi_bottom_margin - roi_height],
-            [frame_w, frame_h - roi_bottom_margin - roi_height],
-            [frame_w, frame_h - roi_bottom_margin],
-            [0, frame_h - roi_bottom_margin]
-        ])
 
         def check_roi(x, y):
             # pointPolygonTest attend un tuple de floats
@@ -152,13 +297,17 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
             x1, y1, x2, y2 = xyxy
             cx = (x1 + x2) // 2
             cy = (y1 + y2) // 2
+            conf = float(box.conf[0]) if hasattr(box, "conf") else None
 
             if check_roi(cx, cy):
                 quelquun_dans_zone = True
                 cv2.rectangle(frame_visuelle, (x1, y1), (x2, y2), JAUNE_INTRUS, 2)
+                label = "PERSONNE"
+                if conf is not None:
+                    label += f" {conf*100:.0f}%"
                 cv2.putText(
                     frame_visuelle,
-                    "PERSONNE",
+                    label,
                     (x1, max(0, y1 - 10)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
@@ -191,9 +340,17 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         cv2.fillPoly(overlay, [roi_points], BLEU_ZONE)
         cv2.addWeighted(overlay, 0.3, frame_visuelle, 0.7, 0, frame_visuelle)
         cv2.polylines(frame_visuelle, [roi_points], True, BLEU_ZONE, 2)
-        cv2.putText(frame_visuelle, "ZONE CRITIQUE",
-                    (10, frame_h - roi_bottom_margin - roi_height - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, BLEU_ZONE, 2)
+        roi_min_y = int(np.min(roi_points[:, 1]))
+        label_y = max(20, roi_min_y - 10)
+        cv2.putText(
+            frame_visuelle,
+            "ZONE CRITIQUE",
+            (10, label_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            BLEU_ZONE,
+            2,
+        )
 
         dashboard_height = 40
         cv2.rectangle(frame_visuelle, (0, frame_h - dashboard_height), (frame_w, frame_h), (30, 30, 30), -1)
@@ -285,7 +442,8 @@ def get_active_cameras():
 if __name__ == "__main__":
     # Mode standalone : une caméra (comme l'ancien script)
     import sys
-    URL_CAM = os.environ.get("URL_CAM", "http://10.247.21.164:8080/video")
+    # URL_CAM = os.environ.get("URL_CAM", "http://10.247.21.164:8080/video")
+    URL_CAM = os.environ.get("URL_CAM", "1")  # Iriun sur index 1
     if len(sys.argv) > 1:
         URL_CAM = sys.argv[1]
     print("--------------------------------------------------")

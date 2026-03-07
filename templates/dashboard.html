@@ -2,6 +2,9 @@
 {% block title %}Tableau de bord — SAFEDETECT{% endblock %}
 {% block content %}
 <h1>Tableau de bord</h1>
+{% if request.args.get('zone_saved') %}
+<div class="flash success">Zone critique enregistrée pour la caméra.</div>
+{% endif %}
 
 <div class="card">
     <h2 style="font-size: 1.1rem; margin: 0 0 1rem 0;">Surveillance</h2>
@@ -82,6 +85,7 @@
                     {% endif %}
                 </td>
                 <td>
+                    <a href="{{ url_for('zone_setup_page', camera_id=cam.id) }}" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Définir zone</a>
                     <form method="post" action="{{ url_for('delete_camera', cam_id=cam.id) }}" style="display: inline;" onsubmit="return confirm('Supprimer cette caméra ?');">
                         <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Supprimer</button>
                     </form>
