@@ -1,0 +1,17 @@
+[
+  {
+    "id": "cam_1",
+    "label": "enA",
+    "url": "1"
+  },
+  {
+    "id": "cam_2",
+    "label": "cam_2",
+    "url": "0"
+  },
+  {
+    "id": "cam_3",
+    "label": "cam_3",
+    "url": "2"
+  }
+]

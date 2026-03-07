@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Connexion — SAVEDETECT{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 3rem auto;">
+    <h1>Connexion administrateur</h1>
+    <p style="color: var(--muted); margin-bottom: 1.5rem;">SAVEDETECT — Gestion de la surveillance</p>
+    <form method="post" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="username">Identifiant</label>
+            <input type="text" id="username" name="username" required autofocus placeholder="admin">
+        </div>
+        <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary">Se connecter</button>
+    </form>
+</div>
+{% endblock %}

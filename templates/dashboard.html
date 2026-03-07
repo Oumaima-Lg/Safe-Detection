@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord — SAVEDETECT{% endblock %}
+{% block content %}
+<h1>Tableau de bord</h1>
+
+<div class="card">
+    <h2 style="font-size: 1.1rem; margin: 0 0 1rem 0;">Surveillance</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem;">
+        {% if active_cameras %}
+        <span class="badge badge-success">En cours</span> {{ active_cameras|length }} caméra(s) surveillée(s).
+        {% else %}
+        <span class="badge badge-muted">Arrêtée</span> Aucune surveillance en cours.
+        {% endif %}
+    </p>
+    <form method="post" action="{{ url_for('start_surveillance_route') }}" style="display: inline;">
+        <button type="submit" class="btn btn-primary" {% if not cameras %}disabled title="Ajoutez au moins une caméra"{% endif %}>
+            Démarrer la surveillance
+        </button>
+    </form>
+    {% if active_cameras %}
+    <form method="post" action="{{ url_for('stop_surveillance_route') }}" style="display: inline; margin-left: 0.5rem;">
+        <button type="submit" class="btn btn-danger">Arrêter la surveillance</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if active_cameras %}
+<div class="card">
+    <h2 style="font-size: 1.1rem; margin: 0 0 1rem 0;">Vue en direct (zone sécurisée + alertes)</h2>
+    <p style="color: var(--muted); margin-bottom: 1rem;">La zone bleue en bas de l’image est la zone surveillée. Les intrusions y sont détectées et affichées.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem;">
+        {% for cam in cameras %}
+        {% if cam.id in active_cameras %}
+        <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+            <div style="padding: 0.5rem 0.75rem; background: var(--bg); font-size: 0.9rem;">{{ cam.label or cam.id }}</div>
+            <img src="{{ url_for('stream', camera_id=cam.id) }}" alt="{{ cam.label or cam.id }}" style="width: 100%; display: block; background: #000;">
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2 style="font-size: 1.1rem; margin: 0 0 1rem 0;">Ajouter une caméra</h2>
+    <form method="post" action="{{ url_for('add_camera') }}" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-group" style="flex: 1; min-width: 120px;">
+            <label for="label">Nom (optionnel)</label>
+            <input type="text" id="label" name="label" placeholder="ex: Entrepôt A">
+        </div>
+        <div class="form-group" style="flex: 2; min-width: 200px;">
+            <label for="url">Adresse ou index de la caméra *</label>
+            <input type="text" id="url" name="url" required placeholder="http://... ou 0, 1, 2 (Iriun / webcam locale)"
+                   title="URL (ex: http://IP:8080/video) ou numéro 0, 1, 2 pour Iriun Webcam / webcam PC">
+        </div>
+        <button type="submit" class="btn btn-primary">Ajouter</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2 style="font-size: 1.1rem; margin: 0 0 1rem 0;">Liste des caméras</h2>
+    {% if cameras %}
+    <table>
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Adresse (URL)</th>
+                <th>Statut</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cam in cameras %}
+            <tr>
+                <td>{{ cam.label or cam.id }}</td>
+                <td><code style="font-size: 0.85rem; color: var(--muted);">{{ cam.url }}</code></td>
+                <td>
+                    {% if cam.id in active_cameras %}
+                    <span class="badge badge-success">Active</span>
+                    {% else %}
+                    <span class="badge badge-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('delete_camera', cam_id=cam.id) }}" style="display: inline;" onsubmit="return confirm('Supprimer cette caméra ?');">
+                        <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Supprimer</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted);">Aucune caméra configurée. Ajoutez des adresses ci-dessus (URL IP ou flux RTSP/HTTP).</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Logs — SAVEDETECT{% endblock %}
+{% block content %}
+<h1>Journal des événements</h1>
+<div class="card">
+    {% if rows %}
+    <table>
+        <thead>
+            <tr>
+                {% if header %}
+                {% for h in header %}
+                <th>{{ h }}</th>
+                {% endfor %}
+                {% else %}
+                <th>Date et Heure</th>
+                <th>Événement</th>
+                <th>Durée (s)</th>
+                <th>Caméra</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted);">Aucun événement enregistré.</p>
+    {% endif %}
+</div>
+{% endblock %}
