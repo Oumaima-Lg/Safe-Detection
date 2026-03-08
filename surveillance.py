@@ -218,6 +218,7 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
     est_en_alerte = False
     temps_debut_intrusion = 0
     roi_points = None
+    last_roi_check = 0
 
     while not stop_event.is_set():
         ret, frame = cap.read()
@@ -234,36 +235,31 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
         # ==========================
         # Zone critique : polygone utilisateur si disponible
         # ==========================
-        if roi_points is None:
+        # Recharger la zone toutes les 2 secondes (pour l'app web)
+        if time.time() - last_roi_check > 2.0:
+            last_roi_check = time.time()
             # 1) App web : zone par caméra (data/zones.json)
             roi_loaded = load_roi_for_camera(camera_id, frame_w, frame_h)
             if roi_loaded is not None:
                 roi_points = roi_loaded
-            # 2) Script standalone : zone globale (zone_critique.json)
-            if roi_points is None:
+            
+            # Si toujours None et mode standalone, tenter de charger zone_critique.json
+            if roi_points is None and not headless:
                 roi_loaded_standalone = _load_saved_roi(frame_w, frame_h)
                 if roi_loaded_standalone is not None:
                     roi_points = roi_loaded_standalone
-            if roi_points is None and not headless:
+
+        # Si toujours None après chargement (ou premier tour)
+        if roi_points is None:
+            if not headless:
                 # 3) En mode non headless, laisser l'utilisateur dessiner une zone (souris)
                 drawn = _define_roi_with_mouse(frame_visuelle)
                 if drawn is not None:
                     roi_points = drawn
                     _save_roi(roi_points, frame_w, frame_h)
-                else:
-                    # Si l'utilisateur annule, on retombe sur l'ancienne zone rectangulaire en bas
-                    roi_bottom_margin = 50
-                    roi_height = 300
-                    roi_points = np.array(
-                        [
-                            [0, frame_h - roi_bottom_margin - roi_height],
-                            [frame_w, frame_h - roi_bottom_margin - roi_height],
-                            [frame_w, frame_h - roi_bottom_margin],
-                            [0, frame_h - roi_bottom_margin],
-                        ]
-                    )
-            else:
-                # 4) Sinon : zone rectangulaire par défaut (bas de l'image)
+            
+            # Si toujours None (annulé ou headless), zone rectangulaire par défaut
+            if roi_points is None:
                 roi_bottom_margin = 50
                 roi_height = 300
                 roi_points = np.array(
@@ -298,8 +294,9 @@ def run_detection(camera_url_or_index, camera_id="cam0", headless=False, stop_ev
             cx = (x1 + x2) // 2
             cy = (y1 + y2) // 2
             conf = float(box.conf[0]) if hasattr(box, "conf") else None
+            print("confidenvce :", conf)
 
-            if check_roi(cx, cy):
+            if check_roi(cx, cy) and (conf > 0.7):
                 quelquun_dans_zone = True
                 cv2.rectangle(frame_visuelle, (x1, y1), (x2, y2), JAUNE_INTRUS, 2)
                 label = "PERSONNE"
@@ -385,6 +382,28 @@ def get_last_frame(camera_id):
     """Retourne la dernière frame JPEG de la caméra (pour flux MJPEG dans l'app web)."""
     with _last_frames_lock:
         return _last_frames.get(camera_id)
+
+
+def get_snapshot(camera_url_or_index):
+    """
+    Ouvre brièvement la caméra pour capturer une seule frame (pour la config de zone).
+    """
+    source = camera_url_or_index
+    if isinstance(source, str) and source.strip().isdigit():
+        source = int(source.strip())
+    
+    cap = cv2.VideoCapture(source)
+    if not cap.isOpened():
+        return None
+    
+    # Lire quelques frames pour vider d'éventuels buffers et avoir une image fraîche
+    for _ in range(5):
+        ret, frame = cap.read()
+    
+    cap.release()
+    if not ret:
+        return None
+    return frame
 
 
 # Dernière frame par caméra (pour flux web : zone + alertes visibles)

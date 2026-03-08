@@ -1,7 +1,12 @@
 [
   {
     "id": "cam_1",
-    "label": "S",
+    "label": "A",
     "url": "1"
+  },
+  {
+    "id": "cam_2",
+    "label": "ZZ",
+    "url": "2"
   }
 ]

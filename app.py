@@ -13,7 +13,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 
 import cv2
 import numpy as np
-from surveillance import start_surveillance, stop_surveillance, get_active_cameras, get_last_frame
+from surveillance import start_surveillance, stop_surveillance, get_active_cameras, get_last_frame, get_snapshot
+
+# ... (rest of configuration)
 
 # ==============================
 # CONFIGURATION
@@ -148,8 +150,21 @@ def zone_setup_page(camera_id):
 def api_zone_setup_get(camera_id):
     """Retourne la dernière frame de la caméra (base64) + dimensions pour le dessin."""
     frame_bytes = get_last_frame(camera_id)
+    
+    # Si la surveillance ne tourne pas, on essaie de prendre une capture unique
     if frame_bytes is None:
-        return jsonify({"error": "start_stream_first"}), 200
+        cameras = load_cameras()
+        cam = next((c for c in cameras if c.get("id") == camera_id), None)
+        if cam:
+            frame_np = get_snapshot(cam['url'])
+            if frame_np is not None:
+                _, jpeg = cv2.imencode(".jpg", frame_np)
+                frame_bytes = jpeg.tobytes()
+            else:
+                return jsonify({"error": "camera_unreachable"}), 200
+        else:
+            return jsonify({"error": "camera_not_found"}), 200
+
     nparr = np.frombuffer(frame_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
@@ -191,8 +206,8 @@ def add_camera():
     cam_id = f"cam_{len(cameras) + 1}"
     cameras.append({"id": cam_id, "label": label or cam_id, "url": url})
     save_cameras(cameras)
-    flash(f"Caméra ajoutée : {label or url}", "success")
-    return redirect(url_for("dashboard"))
+    flash(f"Caméra ajoutée : {label or url}. Veuillez définir la zone critique.", "success")
+    return redirect(url_for("zone_setup_page", camera_id=cam_id))
 
 
 @app.route("/cameras/delete/<cam_id>", methods=["POST"])

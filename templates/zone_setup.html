@@ -15,8 +15,10 @@
         <canvas id="canvas" style="position: absolute; top: 0; left: 0; cursor: crosshair;"></canvas>
     </div>
     <div id="actions" style="display: none; margin-top: 1rem;">
-        <button type="button" class="btn btn-secondary" id="btnReset">Réinitialiser</button>
+        <button type="button" class="btn btn-secondary" id="btnUndo">Annuler le dernier point</button>
+        <button type="button" class="btn btn-secondary" id="btnReset" style="margin-left: 0.5rem;">Réinitialiser</button>
         <button type="button" class="btn btn-primary" id="btnSubmit" style="margin-left: 0.5rem;">Valider la zone</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="margin-left: 0.5rem;">Passer pour le moment</a>
     </div>
 </div>
 
@@ -32,35 +34,78 @@
 
     let dataWidth = 0, dataHeight = 0;
     let points = [];
+    let mousePos = { x: 0, y: 0 };
 
     function showError(text) {
         msg.textContent = text;
         msg.style.color = "var(--danger)";
+        // Toujours montrer le bouton "Passer" même en cas d'erreur
+        actions.style.display = "block";
+        document.getElementById("btnUndo").style.display = "none";
+        document.getElementById("btnReset").style.display = "none";
+        document.getElementById("btnSubmit").style.display = "none";
     }
 
     function drawPolygon() {
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (points.length < 2) return;
+        
+        if (points.length === 0) return;
+
+        // Dessiner le polygone existant
         ctx.strokeStyle = "rgba(0, 255, 255, 0.9)";
         ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
-        ctx.stroke();
-        points.forEach(function(p) {
-            ctx.fillStyle = "rgba(0, 255, 255, 0.8)";
+        for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+        }
+        
+        // Si plus de 2 points, on montre la fermeture potentielle
+        if (points.length >= 2) {
+            ctx.setLineDash([5, 5]);
+            ctx.lineTo(points[0].x, points[0].y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else {
+            ctx.stroke();
+        }
+
+        // Ligne vers la souris (preview)
+        if (points.length > 0) {
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+            ctx.lineTo(mousePos.x, mousePos.y);
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.4)";
+            ctx.setLineDash([2, 2]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Dessiner les points
+        points.forEach(function(p, index) {
+            ctx.fillStyle = index === 0 ? "#ff0" : "rgba(0, 255, 255, 0.8)";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
             ctx.fill();
+            if (index === 0) {
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
         });
     }
 
     fetch("/api/zone-setup/" + cameraId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (data.error === "start_stream_first") {
-                showError("Démarrez d'abord la surveillance pour cette caméra, puis revenez ici pour définir la zone.");
+            if (data.error === "camera_unreachable") {
+                showError("Impossible de joindre la caméra. Vérifiez l'adresse ou assurez-vous qu'elle est en ligne.");
+                return;
+            }
+            if (data.error === "camera_not_found") {
+                showError("Caméra introuvable dans la configuration.");
                 return;
             }
             if (data.error || !data.image) {
@@ -82,6 +127,7 @@
                 canvas.height = h;
                 canvas.style.width = w + "px";
                 canvas.style.height = h + "px";
+                drawPolygon();
             };
         })
         .catch(function() { showError("Erreur réseau."); });
@@ -91,6 +137,18 @@
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         points.push({ x: x, y: y });
+        drawPolygon();
+    });
+
+    canvas.addEventListener("mousemove", function(e) {
+        const rect = canvas.getBoundingClientRect();
+        mousePos.x = e.clientX - rect.left;
+        mousePos.y = e.clientY - rect.top;
+        drawPolygon();
+    });
+
+    document.getElementById("btnUndo").addEventListener("click", function() {
+        points.pop();
         drawPolygon();
     });
 
