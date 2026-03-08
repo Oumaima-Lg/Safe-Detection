@@ -2,7 +2,8 @@
   {
     "id": "cam_1",
     "label": "A",
-    "url": "1"
+    "url": "1",
+    "detection_mode": "human"
   },
   {
     "id": "cam_2",

@@ -10,7 +10,7 @@
     </p>
     {% for cam in captures %}
     <div style="margin-bottom: 1.5rem;">
-        <h2 style="font-size: 1rem; margin: 0 0 0.75rem 0;">Caméra : {{ cam.camera }}</h2>
+        <h2 style="font-size: 1rem; margin: 0 0 0.75rem 0;">{{ cam.label }} <small style="color: var(--muted); font-weight: normal; margin-left: 0.5rem;">({{ cam.id }})</small></h2>
         {% if cam.files %}
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
             {% for fname in cam.files %}

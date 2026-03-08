@@ -56,6 +56,13 @@
             <input type="text" id="url" name="url" required placeholder="http://... ou 0, 1, 2 (Iriun / webcam locale)"
                    title="URL (ex: http://IP:8080/video) ou numéro 0, 1, 2 pour Iriun Webcam / webcam PC">
         </div>
+        <div class="form-group" style="flex: 1; min-width: 150px;">
+            <label for="detection_mode">Mode de détection</label>
+            <select name="detection_mode" id="detection_mode" style="width: 100%; padding: 0.5rem; border-radius: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
+                <option value="human">Intrusion humaine</option>
+                <option value="ppe">Contrôle EPI (Gilet/Casque)</option>
+            </select>
+        </div>
         <button type="submit" class="btn btn-primary">Ajouter</button>
     </form>
 </div>
@@ -68,6 +75,7 @@
             <tr>
                 <th>Nom</th>
                 <th>Adresse (URL)</th>
+                <th>Mode</th>
                 <th>Statut</th>
                 <th></th>
             </tr>
@@ -77,6 +85,14 @@
             <tr>
                 <td>{{ cam.label or cam.id }}</td>
                 <td><code style="font-size: 0.85rem; color: var(--muted);">{{ cam.url }}</code></td>
+                <td>
+                    <form action="{{ url_for('update_camera_mode', cam_id=cam.id) }}" method="post" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <select name="detection_mode" onchange="this.form.submit()" style="font-size: 0.8rem; padding: 2px 4px; border-radius: 4px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
+                            <option value="human" {% if cam.detection_mode == 'human' %}selected{% endif %}>Intrusion</option>
+                            <option value="ppe" {% if cam.detection_mode == 'ppe' %}selected{% endif %}>EPI</option>
+                        </select>
+                    </form>
+                </td>
                 <td>
                     {% if cam.id in active_cameras %}
                     <span class="badge badge-success">Active</span>

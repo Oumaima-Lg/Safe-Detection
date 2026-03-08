@@ -198,16 +198,38 @@ def api_zone_setup_post(camera_id):
 def add_camera():
     label = request.form.get("label", "").strip() or None
     url = request.form.get("url", "").strip()
+    mode = request.form.get("detection_mode", "human")
     if not url:
         flash("L'adresse de la caméra est obligatoire.", "error")
         return redirect(url_for("dashboard"))
 
     cameras = load_cameras()
-    cam_id = f"cam_{len(cameras) + 1}"
-    cameras.append({"id": cam_id, "label": label or cam_id, "url": url})
+    # Utiliser un timestamp pour l'ID pour éviter les collisions (cam_20260307213015)
+    cam_id = f"cam_{int(time.time())}"
+    cameras.append({
+        "id": cam_id, 
+        "label": label or cam_id, 
+        "url": url,
+        "detection_mode": mode
+    })
     save_cameras(cameras)
     flash(f"Caméra ajoutée : {label or url}. Veuillez définir la zone critique.", "success")
     return redirect(url_for("zone_setup_page", camera_id=cam_id))
+
+
+@app.route("/cameras/update-mode/<cam_id>", methods=["POST"])
+@login_required
+def update_camera_mode(cam_id):
+    mode = request.form.get("detection_mode")
+    cameras = load_cameras()
+    for c in cameras:
+        if c.get("id") == cam_id:
+            c["detection_mode"] = mode
+            break
+    save_cameras(cameras)
+    flash("Mode de détection mis à jour.", "success")
+    # Si la surveillance est active, il faudra redémarrer pour prendre en compte (ou la boucle le fera via _get_camera_config)
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/cameras/delete/<cam_id>", methods=["POST"])
@@ -263,17 +285,25 @@ def logs():
 @login_required
 def captures():
     """Page listant les captures d'intrusion (screenshots) par caméra."""
+    cameras = load_cameras()
+    cam_map = {c.get("id"): c.get("label") or c.get("id") for c in cameras}
+    
     captures_list = []
     if CAPTURES_DIR.exists():
+        # Lister tous les dossiers de caméras
         for cam_dir in sorted(CAPTURES_DIR.iterdir()):
             if cam_dir.is_dir():
-                images = sorted(cam_dir.glob("*.jpg"), reverse=True)[:50]
-                captures_list.append(
-                    {
-                        "camera": cam_dir.name,
-                        "files": [f"{cam_dir.name}/{img.name}" for img in images],
-                    }
-                )
+                cid = cam_dir.name
+                # On ne montre que s'il y a des images
+                images = sorted(list(cam_dir.glob("*.jpg")), key=os.path.getmtime, reverse=True)[:50]
+                if images:
+                    captures_list.append(
+                        {
+                            "id": cid,
+                            "label": cam_map.get(cid, cid),
+                            "files": [f"{cid}/{img.name}" for img in images],
+                        }
+                    )
     return render_template("captures.html", captures=captures_list)
 
 
