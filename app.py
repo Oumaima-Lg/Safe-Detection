@@ -94,9 +94,8 @@ def logout():
 # ==============================
 @app.route("/")
 def index():
-    if session.get("admin_logged_in"):
-        return redirect(url_for("dashboard"))
-    return redirect(url_for("login"))
+    """Page d'accueil de présentation (ouverte à tous)."""
+    return render_template("index.html")
 
 
 @app.route("/dashboard")
@@ -305,6 +304,12 @@ def captures():
                         }
                     )
     return render_template("captures.html", captures=captures_list)
+
+
+@app.route("/logo.png")
+def logo():
+    """Serre le logo de l'application."""
+    return send_from_directory(BASE_DIR, "logo_safeDetect.png")
 
 
 @app.route("/captures/file/<path:filename>")

@@ -83,17 +83,29 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    {% if session.get('admin_logged_in') %}
+    {% if request.endpoint != 'index' %}
     <nav>
-        <span><strong>SAFEDETECT</strong> — Administration</span>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <a href="{{ url_for('index') }}" style="display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit;">
+                <img src="{{ url_for('logo') }}" alt="Logo" style="height: 32px; width: auto;">
+                <span><strong>SAFEDETECT</strong></span>
+            </a>
+        </div>
         <span>
+            <a href="{{ url_for('index') }}">Accueil</a>
+            {% if session.get('admin_logged_in') %}
+            &nbsp;|&nbsp;
             <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
             &nbsp;|&nbsp;
             <a href="{{ url_for('logs') }}">Logs</a>
             &nbsp;|&nbsp;
             <a href="{{ url_for('captures') }}">Captures</a>
             &nbsp;|&nbsp;
-            <a href="{{ url_for('logout') }}">Déconnexion</a>
+            <a href="{{ url_for('logout') }}" style="color: var(--danger);">Déconnexion</a>
+            {% else %}
+            &nbsp;|&nbsp;
+            <a href="{{ url_for('login') }}">Connexion Admin</a>
+            {% endif %}
         </span>
     </nav>
     {% endif %}

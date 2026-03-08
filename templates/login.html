@@ -1,19 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Connexion — SAFEDETECT{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 400px; margin: 3rem auto;">
-    <h1>Connexion administrateur</h1>
-    <p style="color: var(--muted); margin-bottom: 1.5rem;">SAFEDETECT — Gestion de la surveillance</p>
-    <form method="post" action="{{ url_for('login') }}">
-        <div class="form-group">
-            <label for="username">Identifiant</label>
-            <input type="text" id="username" name="username" required autofocus placeholder="admin">
+<style>
+    /* On surcharge temporairement le conteneur pour le plein écran sur cette page */
+    .container { max-width: none !important; padding: 0 !important; width: 100% !important; }
+</style>
+
+<div style="display: flex; height: 90vh; width: 100%; align-items: center; justify-content: center;">
+    <!-- Section GAUCHE : Logo (Prend 50% de la largeur) -->
+    <div style="flex: 1; display: flex; justify-content: center; align-items: center; border-right: 1px solid var(--border); height: 60%;">
+        <img src="{{ url_for('logo') }}" alt="SAFEDETECT Logo" style="width: 80%; max-width: 350px; height: auto;">
+    </div>
+
+    <!-- Section DROITE : Formulaire (Prend 50% de la largeur, mais le form reste à 400px) -->
+    <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+        <div style="width: 100%; max-width: 400px; padding: 0 2rem;">
+            <div class="card" style="margin: 0; padding: 2.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+                <h1 style="margin-top: 0; font-size: 1.6rem; letter-spacing: -0.02em;">Espace Admin</h1>
+                <p style="color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem;">Connectez-vous pour piloter la détection PPE.</p>
+                
+                <form method="post" action="{{ url_for('login') }}">
+                    <div class="form-group">
+                        <label for="username">Identifiant</label>
+                        <input type="text" id="username" name="username" required autofocus placeholder="Nom d'utilisateur">
+                    </div>
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label for="password">Mot de passe</label>
+                        <input type="password" id="password" name="password" required placeholder="Mot de passe">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 2rem; font-weight: 700; padding: 0.85rem; font-size: 1rem;">
+                        Se connecter
+                    </button>
+                </form>
+            </div>
+            <p style="color: var(--muted); font-size: 0.85rem; margin-top: 2rem; text-align: center; opacity: 0.7;">
+                &copy; 2026 SAFEDETECT — SmartLogisim.
+            </p>
         </div>
-        <div class="form-group">
-            <label for="password">Mot de passe</label>
-            <input type="password" id="password" name="password" required placeholder="••••••••">
-        </div>
-        <button type="submit" class="btn btn-primary">Se connecter</button>
-    </form>
+    </div>
 </div>
 {% endblock %}
